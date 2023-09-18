@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>График функции</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        #refine-button {
+            display: none;
+        }
+
+        #tableContainer {
+            width: 80%;
+            margin: auto;
+            overflow: auto;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            padding: 20px;
+            display: none;
+        }
+
+        #tableContainer table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #tableContainer th,
+        #tableContainer td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        #tableContainer tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .row button {
+            margin: 0 5px;
+        }
+    </style>
+</head>
+
+<body class="valign-wrapper" style="width:100%;height:100vh;margin:0;display:flex;align-items:center;flex-wrap:wrap">
+    <div class="container">
+        <h3 class="center-align">Введите уравнение функции</h3>
+        <h5 class="center-align">Функция должна иметь вид y = f(x)</h5>
+        <h5 class="center-align">Например: y = (x**3)-(6*x**2)+20</h5>
+        <br />
+        <div class="row">
+            <button class="btn waves-effect waves-light" onclick='insertSymbol("**2")'>²</button><button
+                class="btn waves-effect waves-light" onclick='insertSymbol("**3")'>³</button>
+            <button class="btn waves-effect waves-light" onclick='insertSymbol("Math.sqrt(")'>√</button>
+        </div>
+        <div class="row">
+            <form class="col s12" onsubmit="event.preventDefault(),drawGraph()">
+                <div class="row">
+                    <div class="input-field col s10"><input id="equation" type="text" class="validate" /><label
+                            for="equation">Уравнение</label></div>
+                    <div class="input-field col s2"><button class="btn waves-effect waves-light red"
+                            onclick="event.preventDefault(),clearEquation()">Очистить</button></div>
+                </div>
+                <div class="row center-align">
+                    <div class="input-field col s12"><button class="btn waves-effect waves-light green" type="submit"
+                            name="action">Отправить</button></div>
+                </div>
+            </form>
+        </div>
+        <div id="graphContainer">
+            <div id="myDiv"></div>
+        </div>
+        <p id="intervals" style="font-size: 24px; font-weight: 700; text-align: center;"></p>
+        <div id="buttons" style="text-align: center;"></div>
+        <br />
+        <div id="tableContainer"></div>
+        <br />
+        <div class="center-align"><button id="refine-button" class="btn waves-effect waves-light"
+                onclick="refineTable()">Уточнить</button></div>
+        <br />
+        <br />
+        <br />
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script>
+        let queue = Promise.resolve();
+
+        function addToQueue(func) {
+            queue = queue.then(
+                () =>
+                    new Promise((resolve) => {
+                        func();
+                        setTimeout(resolve, 1000);
+                    })
+            );
+        }
+
+        function insertSymbol(e) {
+            addToQueue(() => {
+                document.getElementById("equation").value += e;
+            });
+        }
+
+        function clearEquation() {
+            addToQueue(() => {
+                document.getElementById("equation").value = "";
+                document.getElementById("graphContainer").innerHTML = '<div id="myDiv"></div>';
+                document.getElementById("intervals").innerText = "";
+                document.getElementById("buttons").innerHTML = "";
+                document.getElementById("tableContainer").innerHTML = "";
+                document.getElementById("refine-button").style.display = "none";
+                document.getElementById("tableContainer").style.display = "none";
+            });
+        }
+
+
+        function createTable(interval) {
+            addToQueue(() => {
+                document.getElementById("refine-button").style.display = "inline-block";
+                document.getElementById("tableContainer").style.display = "block";
+                var equation = document.getElementById("equation").value;
+                var min = parseFloat(interval.split(";")[0].slice(1));
+                var max = parseFloat(interval.split(";")[1].slice(0, -1));
+                var table = "<table><tr><th>x</th><th>y</th></tr>";
+                for (var x = min; x <= max; x += 0.1) {
+                    x = parseFloat(x.toFixed(1));
+                    var y = eval(equation);
+                    table += "<tr><td>" + x.toFixed(1) + "</td><td>" + y.toFixed(2) + "</td></tr>";
+                }
+                table += "</table>";
+                document.getElementById("tableContainer").innerHTML = table;
+            });
+        }
+
+        var precision = 1;
+
+        function refineTable() {
+            addToQueue(() => {
+                var equation = document.getElementById("equation").value;
+                var rows = document.getElementsByTagName("tr");
+                var newMin, newMax;
+                for (var i = 1; i < rows.length - 1; i++) {
+                    var currentY = parseFloat(rows[i].children[1].innerText);
+                    var nextY = parseFloat(rows[i + 1].children[1].innerText);
+                    if (currentY * nextY < 0) {
+                        newMin = parseFloat(rows[i].children[0].innerText);
+                        newMax = parseFloat(rows[i + 1].children[0].innerText);
+                        break;
+                    }
+                }
+                if (newMin !== undefined && newMax !== undefined) {
+                    precision += 1;
+                    var step = Math.pow(10, -precision);
+                    var table = "<table><tr><th>x</th><th>y</th></tr>";
+                    for (var x = newMin; x <= newMax; x += step) {
+                        x = parseFloat(x.toFixed(precision));
+                        var y = eval(equation);
+                        table += "<tr><td>" + x.toFixed(precision) + "</td><td>" + y.toFixed(10) + "</td></tr>";
+                    }
+                    table += "</table>";
+                    document.getElementById("tableContainer").innerHTML = table;
+                }
+            });
+        }
+
+        function drawGraph() {
+            addToQueue(() => {
+                document.getElementById("buttons").innerHTML = "";
+                var equation = document.getElementById("equation").value,
+                    xValues = [],
+                    yValues = [],
+                    crossingPoints = [],
+                    lastY;
+                try {
+                    eval(equation.replace(/x/g, "1"));
+                } catch (e) {
+                    return void (document.getElementById("intervals").innerText = "Введенное уравнение некорректно");
+                }
+                for (var x = -10; x <= 10; x += 0.2) {
+                    var y = eval(equation);
+                    xValues.push(x), yValues.push(y), void 0 !== lastY && lastY * y <= 0 && crossingPoints.push(x.toFixed(2)), (lastY = y);
+                }
+                var data = [
+                    {
+                        x: xValues,
+                        y: yValues,
+                        mode: "lines",
+                        line: {
+                            color: "#80CAF6",
+                        },
+                    },
+                ];
+                if ((Plotly.newPlot("myDiv", data), 0 < crossingPoints.length)) {
+                    for (var intervals = [], i = 0; i < crossingPoints.length; i++) intervals.push("[" + Math.floor(crossingPoints[i]) + ";" + Math.ceil(crossingPoints[i]) + "]");
+                    document.getElementById("intervals").innerText = "Отрезки, на которых находятся точки пересечения с осью OX:";
+                    for (var i = 0; i < intervals.length; i++) {
+                        var button = document.createElement("button");
+                        button.innerText = intervals[i];
+                        button.className = "btn waves-effect waves-light";
+                        button.style.margin = "10px";
+                        button.setAttribute("onclick", 'createTable("' + intervals[i] + '")'); // Добавьте эту строку
+                        document.getElementById("buttons").appendChild(button);
+                    }
+                } else {
+                    document.getElementById("intervals").innerText = "Программа не смогла найти отрезки, на которых находятся точки пересечения";
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
